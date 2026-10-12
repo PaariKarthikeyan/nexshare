@@ -1,0 +1,1 @@
+# Intentionally empty for Phase 1. Room and coroutines rules are added later if minification is enabled.

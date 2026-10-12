@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="nexshare_outer_background">#F4DCDC</color>
+    <color name="nexshare_main_panel">#40151B</color>
+    <color name="nexshare_dark_panel">#2B0D12</color>
+    <color name="nexshare_card">#5A2025</color>
+    <color name="nexshare_light_card">#743039</color>
+    <color name="nexshare_primary_accent">#F05B63</color>
+    <color name="nexshare_light_accent">#FF8B85</color>
+    <color name="nexshare_primary_text">#FFF4ED</color>
+    <color name="nexshare_secondary_text">#D7A9A7</color>
+    <color name="nexshare_success">#78D6A3</color>
+    <color name="nexshare_warning">#F5BD67</color>
+    <color name="nexshare_danger">#EF6B73</color>
+</resources>
