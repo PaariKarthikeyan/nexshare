@@ -65,9 +65,14 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Send instant UDP broadcast ping (< 100 ms response)
-        runCatching {
-            udpDiscovery.sendPing(localDeviceName, if (localPort > 0) localPort else 5000)
+        // Fast discovery loop on app launch (fires pings repeatedly for 10s to ensure instant detection within 1-3 seconds)
+        viewModelScope.launch {
+            repeat(10) {
+                runCatching {
+                    udpDiscovery.sendPing(localDeviceName, if (localPort > 0) localPort else 5000)
+                }
+                delay(1000L)
+            }
         }
 
         // Active Bluetooth discovery for ALL connectable nearby Bluetooth devices
@@ -101,6 +106,26 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
             })
         }
         viewModelScope.launch { expireStalePeers() }
+    }
+
+    fun addDiscoveredPeerFromQR(deviceName: String, host: String, port: Int): Peer {
+        val peerId = "qr_$host"
+        val peer = Peer(
+            peerId = peerId,
+            deviceName = deviceName,
+            host = host,
+            port = port,
+            method = ConnectionMethod.HOTSPOT,
+            status = PeerStatus.ONLINE,
+            trusted = true,
+            lastSeenMillis = System.currentTimeMillis()
+        )
+        _peers.update { list ->
+            val existing = list.firstOrNull { it.peerId == peerId }
+            if (existing == null) list + peer
+            else list.map { if (it.peerId == peerId) peer else it }
+        }
+        return peer
     }
 
     fun togglePair(peerId: String) {

@@ -39,7 +39,7 @@ import com.example.nexshare.ui.theme.*
 import com.example.nexshare.util.QRCodeDecoder
 
 @Composable
-fun ReceiveScreen(container: AppContainer) {
+fun ReceiveScreen(container: AppContainer, peersViewModel: PeersViewModel? = null) {
     val pending by container.pendingRequest.collectAsState()
     val deviceName = Build.MODEL.ifBlank { "NexShare device" }
     val context = LocalContext.current
@@ -54,10 +54,11 @@ fun ReceiveScreen(container: AppContainer) {
             val rawText = QRCodeDecoder.decodeBitmap(bitmap)
             if (rawText != null) {
                 val qrData = QRCodeDecoder.parseData(rawText)
-                scanStatusMessage = if (qrData != null) {
-                    "Connected via Camera to ${qrData.deviceName} (${qrData.host}:${qrData.port})!"
+                if (qrData != null) {
+                    peersViewModel?.addDiscoveredPeerFromQR(qrData.deviceName, qrData.host, qrData.port)
+                    scanStatusMessage = "Connected to ${qrData.deviceName} (${qrData.host}:${qrData.port})! Device added to Nearby Devices."
                 } else {
-                    "Scanned QR Code: $rawText"
+                    scanStatusMessage = "Scanned QR Code: $rawText"
                 }
             } else {
                 scanStatusMessage = "No QR code detected in captured photo. Please align and try again."
@@ -103,10 +104,11 @@ fun ReceiveScreen(container: AppContainer) {
                         val rawText = QRCodeDecoder.decodeBitmap(bitmap)
                         if (rawText != null) {
                             val qrData = QRCodeDecoder.parseData(rawText)
-                            scanStatusMessage = if (qrData != null) {
-                                "Connected via QR Image to ${qrData.deviceName} (${qrData.host}:${qrData.port})!"
+                            if (qrData != null) {
+                                peersViewModel?.addDiscoveredPeerFromQR(qrData.deviceName, qrData.host, qrData.port)
+                                scanStatusMessage = "Connected to ${qrData.deviceName} (${qrData.host}:${qrData.port})! Device added to Nearby Devices."
                             } else {
-                                "Scanned QR Code: $rawText"
+                                scanStatusMessage = "Scanned QR Code: $rawText"
                             }
                         } else {
                             scanStatusMessage = "No QR code detected in the selected image file."

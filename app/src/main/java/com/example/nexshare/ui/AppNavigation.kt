@@ -110,7 +110,7 @@ fun AppNavigation(
                 )
             }
             composable(Route.Receive.route) {
-                ReceiveScreen(container = container)
+                ReceiveScreen(container = container, peersViewModel = peersViewModel)
             }
             composable(Route.Send.route) {
                 SendScreen(
