@@ -1,8 +1,7 @@
 package com.example.nexshare.ui
 
+import android.bluetooth.BluetoothManager
 import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +11,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -32,49 +34,56 @@ fun NexShareApp() {
     val bluetoothViewModel: BluetoothViewModel = viewModel()
     val sendViewModel: SendViewModel = viewModel()
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ -> }
+    val btAdapter = remember {
+        context.getSystemService(BluetoothManager::class.java)?.adapter
+    }
 
-    LaunchedEffect(Unit) {
-        val permissions = PermissionUtils.hotspotPermissions() +
-                PermissionUtils.bluetoothPermissions() +
-                PermissionUtils.notificationPermissions()
-        permissionLauncher.launch(permissions)
+    var isReady by remember {
+        val missing = PermissionUtils.missing(context, PermissionUtils.allRequiredPermissions())
+        val btEnabled = btAdapter?.isEnabled == true
+        mutableStateOf(missing.isEmpty() && btEnabled)
+    }
 
-        peersViewModel.startDiscovery(deviceName, 0)
-        hotspotViewModel.bind(container.transferServer, deviceName) { port ->
-            if (port > 0) peersViewModel.startDiscovery(deviceName, port)
+    LaunchedEffect(isReady) {
+        if (isReady) {
+            peersViewModel.startDiscovery(deviceName, 0)
+            hotspotViewModel.bind(container.transferServer, deviceName) { port ->
+                if (port > 0) peersViewModel.startDiscovery(deviceName, port)
+            }
         }
     }
 
-    val pending by container.pendingRequest.collectAsState()
-    pending?.let { request ->
-        IncomingRequestDialog(
-            request = request,
-            onAccept = { container.answerPending(true) },
-            onReject = { container.answerPending(false) },
-            onBlock = {
-                container.security.block(request.senderHost)
-                container.answerPending(false)
-            }
-        )
-    }
+    if (!isReady) {
+        PermissionGateScreen(onProceed = { isReady = true })
+    } else {
+        val pending by container.pendingRequest.collectAsState()
+        pending?.let { request ->
+            IncomingRequestDialog(
+                request = request,
+                onAccept = { container.answerPending(true) },
+                onReject = { container.answerPending(false) },
+                onBlock = {
+                    container.security.block(request.senderHost)
+                    container.answerPending(false)
+                }
+            )
+        }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(OuterBackground)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(12.dp)
-    ) {
-        AppNavigation(
-            container = container,
-            peersViewModel = peersViewModel,
-            hotspotViewModel = hotspotViewModel,
-            bluetoothViewModel = bluetoothViewModel,
-            sendViewModel = sendViewModel
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(OuterBackground)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(12.dp)
+        ) {
+            AppNavigation(
+                container = container,
+                peersViewModel = peersViewModel,
+                hotspotViewModel = hotspotViewModel,
+                bluetoothViewModel = bluetoothViewModel,
+                sendViewModel = sendViewModel
+            )
+        }
     }
 }

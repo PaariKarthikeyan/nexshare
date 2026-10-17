@@ -29,26 +29,47 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.nexshare.AppContainer
 import com.example.nexshare.transfer.HashedFile
 import com.example.nexshare.ui.theme.*
 import com.example.nexshare.util.QRCodeEncoder
+import java.net.Inet4Address
+import java.net.NetworkInterface
 
 @Composable
-fun SendScreen(viewModel: SendViewModel, onDone: () -> Unit) {
+fun SendScreen(viewModel: SendViewModel, container: AppContainer? = null, onDone: () -> Unit) {
     val files by viewModel.files.collectAsState()
     val message by viewModel.message.collectAsState()
     var showQrDialog by remember { mutableStateOf(false) }
+    var showWebShareDialog by remember { mutableStateOf(false) }
     val deviceName = Build.MODEL.ifBlank { "NexShare Device" }
 
     if (showQrDialog) {
         val totalBytes = files.sumOf { it.file.sizeBytes }
-        val qrJson = "{\"deviceName\":\"$deviceName\",\"fileCount\":${files.size},\"totalBytes\":$totalBytes}"
+        val serverPort = remember { container?.transferServer?.startServer(deviceName) ?: 5000 }
+        val localIp = remember { getLocalIpv4() ?: "192.168.43.1" }
+        val qrJson = "{\"deviceName\":\"$deviceName\",\"host\":\"$localIp\",\"port\":$serverPort,\"fileCount\":${files.size},\"totalBytes\":$totalBytes}"
         TransferQRCodeDialog(
             qrContent = qrJson,
             deviceName = deviceName,
+            host = localIp,
+            port = serverPort,
             onDismiss = { showQrDialog = false }
+        )
+    }
+
+    if (showWebShareDialog && container != null) {
+        container.webShareServer.sharedFiles = files.map { it.file }
+        val webUrl = remember { container.webShareServer.start() ?: "http://192.168.43.1:8080" }
+        WebShareDialog(
+            webUrl = webUrl,
+            onDismiss = {
+                showWebShareDialog = false
+                container.webShareServer.stop()
+            }
         )
     }
 
@@ -107,6 +128,13 @@ fun SendScreen(viewModel: SendViewModel, onDone: () -> Unit) {
                     ) {
                         Text("Choose a device")
                     }
+                    Button(
+                        onClick = { showWebShareDialog = true },
+                        enabled = files.all { it.sha256 != null },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Web Share (Transfer with PC / Mac / iPhone)")
+                    }
                     OutlinedButton(
                         onClick = { showQrDialog = true },
                         enabled = files.all { it.sha256 != null },
@@ -129,9 +157,59 @@ fun SendScreen(viewModel: SendViewModel, onDone: () -> Unit) {
 }
 
 @Composable
+fun WebShareDialog(
+    webUrl: String,
+    onDismiss: () -> Unit
+) {
+    val bitmap = remember(webUrl) {
+        QRCodeEncoder.encodeAsBitmap(webUrl, 400, 400)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Web Transfer (PC / Mac / iPhone)") },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Open this web link on any PC, Mac, Linux computer, or phone connected to the same Wi-Fi/Hotspot to download or upload files:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = SecondaryText
+                )
+                Text(
+                    text = webUrl,
+                    color = PrimaryAccent,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                bitmap?.let { bmp ->
+                    Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = "Web Share QR Code",
+                        modifier = Modifier
+                            .size(180.dp)
+                            .padding(4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close Web Server")
+            }
+        }
+    )
+}
+
+@Composable
 fun TransferQRCodeDialog(
     qrContent: String,
     deviceName: String,
+    host: String,
+    port: Int,
     onDismiss: () -> Unit
 ) {
     val bitmap = remember(qrContent) {
@@ -161,6 +239,11 @@ fun TransferQRCodeDialog(
                             .padding(4.dp)
                     )
                 }
+                Text(
+                    text = "Host: $host:$port",
+                    color = PrimaryText,
+                    fontSize = 12.sp
+                )
             }
         },
         confirmButton = {
@@ -215,6 +298,16 @@ private fun FileCard(item: HashedFile, onRemove: () -> Unit) {
         }
     }
 }
+
+fun getLocalIpv4(): String? =
+    runCatching {
+        NetworkInterface.getNetworkInterfaces().toList()
+            .filter { it.isUp && !it.isLoopback }
+            .flatMap { it.inetAddresses.toList() }
+            .filterIsInstance<Inet4Address>()
+            .firstOrNull { !it.isLoopbackAddress }
+            ?.hostAddress
+    }.getOrNull()
 
 fun formatBytes(bytes: Long): String {
     if (bytes < 0) return "Unknown size"

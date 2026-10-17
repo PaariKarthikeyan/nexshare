@@ -35,6 +35,9 @@ class AppContainer(private val appContext: Context) {
     val security = SecurityPolicy()
     val fileManager: FileManager by lazy { FileManager(appContext) }
     val tempFiles: TemporaryFileManager by lazy { TemporaryFileManager(appContext) }
+    val webShareServer: com.example.nexshare.network.WebShareServer by lazy {
+        com.example.nexshare.network.WebShareServer(appContext, fileManager)
+    }
 
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

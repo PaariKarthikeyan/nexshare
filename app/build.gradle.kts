@@ -5,6 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
+    id("org.jetbrains.compose")
 }
 
 android {
@@ -92,4 +93,20 @@ dependencies {
     implementation("androidx.camera:camera-view:1.3.4")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+}
+
+compose.desktop {
+    application {
+        mainClass = "com.example.nexshare.DesktopMainKt"
+        nativeDistributions {
+            targetFormats(
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb
+            )
+            packageName = "NexShare"
+            packageVersion = "1.0.1"
+        }
+    }
 }

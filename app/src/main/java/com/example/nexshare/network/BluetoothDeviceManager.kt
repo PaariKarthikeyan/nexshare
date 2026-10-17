@@ -2,6 +2,7 @@ package com.example.nexshare.network
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothServerSocket
@@ -33,6 +34,18 @@ class BluetoothDeviceManager(private val context: Context) {
     val isEnabled: Boolean get() = adapter?.isEnabled == true
 
     @SuppressLint("MissingPermission")
+    fun isPhoneOrComputer(device: BluetoothDevice): Boolean {
+        val btClass = device.bluetoothClass ?: return true
+        val major = btClass.majorDeviceClass
+        return when (major) {
+            BluetoothClass.Device.Major.PHONE,
+            BluetoothClass.Device.Major.COMPUTER,
+            BluetoothClass.Device.Major.UNCATEGORIZED -> true
+            else -> false
+        }
+    }
+
+    @SuppressLint("MissingPermission")
     fun startDiscovery(listener: Listener) {
         val bt = adapter ?: return
         stopDiscovery()
@@ -42,7 +55,7 @@ class BluetoothDeviceManager(private val context: Context) {
                     BluetoothDevice.ACTION_FOUND -> {
                         val device: BluetoothDevice? =
                             intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                        if (device != null) {
+                        if (device != null && isPhoneOrComputer(device)) {
                             listener.onDeviceFound(device.address, device.name ?: device.address)
                         }
                     }

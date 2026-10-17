@@ -34,6 +34,7 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
 
     private var started = false
     private var registeredPort = 0
+    private var currentLocalDeviceName: String = android.os.Build.MODEL.ifBlank { "NexShare device" }
 
     init {
         loadBondedDevices(application)
@@ -44,13 +45,22 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
         runCatching {
             val adapter = application.getSystemService(BluetoothManager::class.java)?.adapter
             adapter?.bondedDevices?.forEach { dev ->
-                upsertBluetoothPeer(dev.address, dev.name ?: dev.address)
+                if (btManager.isPhoneOrComputer(dev)) {
+                    upsertBluetoothPeer(dev.address, dev.name ?: dev.address)
+                }
             }
         }
     }
 
+    private fun isSelf(deviceName: String, host: String): Boolean {
+        if (deviceName.equals(currentLocalDeviceName, ignoreCase = true)) return true
+        if (host == "127.0.0.1" || host == "localhost") return true
+        return false
+    }
+
     /** Starts discovery once. Safe to call from multiple screens. */
     fun startDiscovery(localDeviceName: String, localPort: Int) {
+        currentLocalDeviceName = localDeviceName
         if (localPort > 0 && registeredPort != localPort) {
             registeredPort = localPort
             runCatching {
@@ -143,6 +153,7 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun upsert(peerId: String, deviceName: String, host: String, port: Int) {
+        if (isSelf(deviceName, host)) return
         val now = System.currentTimeMillis()
         _peers.update { list ->
             val existing = list.firstOrNull { it.peerId == peerId }
@@ -162,6 +173,7 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun upsertBluetoothPeer(address: String, name: String) {
+        if (isSelf(name, address)) return
         val now = System.currentTimeMillis()
         _peers.update { list ->
             val existing = list.firstOrNull { it.peerId == address }

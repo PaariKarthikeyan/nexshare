@@ -115,6 +115,7 @@ fun AppNavigation(
             composable(Route.Send.route) {
                 SendScreen(
                     viewModel = sendViewModel,
+                    container = container,
                     onDone = { navController.navigate(Route.Peers.route) }
                 )
             }

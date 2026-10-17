@@ -43,6 +43,12 @@ object PermissionUtils {
         }
     }
 
+    fun allRequiredPermissions(): Array<String> {
+        val list = (hotspotPermissions() + bluetoothPermissions() + notificationPermissions()).toMutableList()
+        list.add(Manifest.permission.CAMERA)
+        return list.distinct().toTypedArray()
+    }
+
     fun missing(context: Context, permissions: Array<String>): List<String> =
         permissions.filter {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
