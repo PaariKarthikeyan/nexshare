@@ -125,18 +125,26 @@ fun AppNavigation(
                     hasQueuedFiles = queued.isNotEmpty(),
                     onSendTo = { peer ->
                         val totalSize = queued.sumOf { it.file.sizeBytes }
-                        val chosenMethod = if (totalSize < 5L * 1024 * 1024) ConnectionMethod.BLUETOOTH else ConnectionMethod.HOTSPOT
+                        val chosenMethod = if (peer.method == ConnectionMethod.BLUETOOTH) {
+                            ConnectionMethod.BLUETOOTH
+                        } else if (totalSize < 5L * 1024 * 1024) {
+                            ConnectionMethod.BLUETOOTH
+                        } else {
+                            ConnectionMethod.HOTSPOT
+                        }
                         val adjustedPeer = peer.copy(method = chosenMethod)
 
                         CoroutineScope(Dispatchers.IO).launch {
-                            queued.forEach { hashedFile ->
-                                hashedFile.sha256?.let { hash ->
-                                    container.transferService.sendFile(
-                                        peer = adjustedPeer,
-                                        file = hashedFile.file,
-                                        sha256 = hash,
-                                        control = TransferControl()
-                                    )
+                            runCatching {
+                                queued.forEach { hashedFile ->
+                                    hashedFile.sha256?.let { hash ->
+                                        container.transferService.sendFile(
+                                            peer = adjustedPeer,
+                                            file = hashedFile.file,
+                                            sha256 = hash,
+                                            control = TransferControl()
+                                        )
+                                    }
                                 }
                             }
                             sendViewModel.clear()

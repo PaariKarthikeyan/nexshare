@@ -1,6 +1,8 @@
 package com.example.nexshare.transfer
 
 import android.content.Context
+import androidx.core.app.NotificationManagerCompat
+import com.example.nexshare.network.BluetoothTransferManager
 import com.example.nexshare.network.TcpTransferManager
 import com.example.nexshare.notification.NotificationHelper
 import com.example.nexshare.transfer.NexShareTransferService.Companion.ControlRegistry
@@ -9,12 +11,12 @@ import com.example.nexshare.transfer.TransferRepository.Companion.STATUS_FAILED
 import com.example.nexshare.transfer.TransferRepository.Companion.STATUS_HASH_MISMATCH
 import com.example.nexshare.transfer.TransferRepository.Companion.STATUS_PAUSED
 import com.example.nexshare.transfer.TransferRepository.Companion.STATUS_VERIFIED
-import androidx.core.app.NotificationManagerCompat
 import java.util.UUID
 
 class TransferService(
     private val context: Context,
-    private val manager: TcpTransferManager,
+    private val tcpManager: TcpTransferManager,
+    private val bluetoothManager: BluetoothTransferManager,
     private val repository: TransferRepository,
     private val deviceName: String
 ) {
@@ -54,27 +56,56 @@ class TransferService(
         ControlRegistry.put(transferId, control)
 
         val outcome = try {
-            manager.send(
-                host = peer.host,
-                port = peer.port,
-                deviceName = deviceName,
-                file = file,
-                sha256 = sha256,
-                transferId = transferId,
-                control = control,
-                onProgress = { p ->
-                    ActiveTransfers.updateProgress(transferId, p.bytesDone, p.bytesPerSecond)
-                    val notif = NotificationHelper.buildProgress(
-                        context = context,
-                        fileName = file.displayName,
-                        percent = (p.fraction * 100).toInt(),
-                        speedText = formatSpeed(p.bytesPerSecond),
-                        paused = false
-                    )
-                    NotificationManagerCompat.from(context)
-                        .notify(NotificationHelper.TRANSFER_NOTIFICATION_ID, notif)
-                }
-            )
+            if (peer.method == ConnectionMethod.BLUETOOTH) {
+                bluetoothManager.send(
+                    address = peer.host,
+                    deviceName = deviceName,
+                    file = file,
+                    sha256 = sha256,
+                    transferId = transferId,
+                    control = control,
+                    onProgress = { p ->
+                        ActiveTransfers.updateProgress(transferId, p.bytesDone, p.bytesPerSecond)
+                        val notif = NotificationHelper.buildProgress(
+                            context = context,
+                            fileName = file.displayName,
+                            percent = (p.fraction * 100).toInt(),
+                            speedText = formatSpeed(p.bytesPerSecond),
+                            paused = false
+                        )
+                        runCatching {
+                            NotificationManagerCompat.from(context)
+                                .notify(NotificationHelper.TRANSFER_NOTIFICATION_ID, notif)
+                        }
+                    }
+                )
+            } else {
+                tcpManager.send(
+                    host = peer.host,
+                    port = peer.port,
+                    deviceName = deviceName,
+                    file = file,
+                    sha256 = sha256,
+                    transferId = transferId,
+                    control = control,
+                    onProgress = { p ->
+                        ActiveTransfers.updateProgress(transferId, p.bytesDone, p.bytesPerSecond)
+                        val notif = NotificationHelper.buildProgress(
+                            context = context,
+                            fileName = file.displayName,
+                            percent = (p.fraction * 100).toInt(),
+                            speedText = formatSpeed(p.bytesPerSecond),
+                            paused = false
+                        )
+                        runCatching {
+                            NotificationManagerCompat.from(context)
+                                .notify(NotificationHelper.TRANSFER_NOTIFICATION_ID, notif)
+                        }
+                    }
+                )
+            }
+        } catch (e: Exception) {
+            TransferOutcome.FAILED
         } finally {
             ControlRegistry.remove(transferId)
         }
@@ -92,11 +123,16 @@ class TransferService(
         } else {
             repository.recordFinished(transferId, status)
             ActiveTransfers.remove(transferId)
+            val resultMessage = if (outcome == TransferOutcome.FAILED && peer.method == ConnectionMethod.BLUETOOTH) {
+                "${file.displayName} (Device is not currently running NexShare)"
+            } else {
+                file.displayName
+            }
             NotificationHelper.postResult(
                 context = context,
                 id = transferId.hashCode(),
                 title = resultTitle(status),
-                text = file.displayName
+                text = resultMessage
             )
             NexShareTransferService.stop(context)
         }

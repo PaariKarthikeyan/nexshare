@@ -106,7 +106,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb
             )
             packageName = "NexShare"
-            packageVersion = "1.0.1"
+            packageVersion = "1.1.0"
         }
     }
 }

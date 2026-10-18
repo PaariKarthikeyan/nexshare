@@ -55,12 +55,25 @@ class AppContainer(private val appContext: Context) {
         )
     }
 
+    val bluetoothManager: com.example.nexshare.network.BluetoothTransferManager by lazy {
+        com.example.nexshare.network.BluetoothTransferManager(
+            device = com.example.nexshare.network.BluetoothDeviceManager(appContext),
+            fileManager = fileManager,
+            tempFiles = tempFiles,
+            security = security,
+            onLog = { Log.d(TAG, it) },
+            approve = { key, name, offer -> awaitApproval(key, name, offer) },
+            onReceived = { part, senderName, offer -> recordReceived(part, senderName, offer) }
+        )
+    }
+
     val transferService: TransferService by lazy {
         TransferService(
             context = appContext,
-            manager = transferServer,
+            tcpManager = transferServer,
+            bluetoothManager = bluetoothManager,
             repository = transferRepository,
-            deviceName = android.os.Build.MODEL.ifBlank { "NexShare device" }
+            deviceName = Build.MODEL.ifBlank { "NexShare device" }
         )
     }
 

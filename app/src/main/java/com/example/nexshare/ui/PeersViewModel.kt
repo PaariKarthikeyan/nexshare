@@ -11,11 +11,13 @@ import com.example.nexshare.network.UdpDiscoveryManager
 import com.example.nexshare.transfer.ConnectionMethod
 import com.example.nexshare.transfer.Peer
 import com.example.nexshare.transfer.PeerStatus
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class PeersViewModel(application: Application) : AndroidViewModel(application) {
@@ -35,6 +37,7 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
     private var started = false
     private var registeredPort = 0
     private var currentLocalDeviceName: String = android.os.Build.MODEL.ifBlank { "NexShare device" }
+    private var continuousScanJob: Job? = null
 
     init {
         loadBondedDevices(application)
@@ -58,7 +61,7 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
         return false
     }
 
-    /** Starts discovery once. Safe to call from multiple screens. */
+    /** Starts continuous automatic background discovery every 5 seconds. Safe & popup-free. */
     fun startDiscovery(localDeviceName: String, localPort: Int) {
         currentLocalDeviceName = localDeviceName
         if (localPort > 0 && registeredPort != localPort) {
@@ -67,7 +70,7 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
                 discovery.register(
                     deviceName = localDeviceName,
                     port = localPort,
-                    onError = { _message.value = it }
+                    onError = { /* Quiet background handling */ }
                 )
             }
             runCatching {
@@ -75,25 +78,29 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Fast discovery loop on app launch (fires pings repeatedly for 10s to ensure instant detection within 1-3 seconds)
-        viewModelScope.launch {
-            repeat(10) {
-                runCatching {
-                    udpDiscovery.sendPing(localDeviceName, if (localPort > 0) localPort else 5000)
+        // Automatic background scanning loop every 5 seconds without popups
+        if (continuousScanJob?.isActive != true) {
+            continuousScanJob = viewModelScope.launch {
+                while (isActive) {
+                    // 1. Send UDP broadcast ping across Wi-Fi / Hotspot subnets
+                    runCatching {
+                        udpDiscovery.sendPing(localDeviceName, if (registeredPort > 0) registeredPort else 5000)
+                    }
+
+                    // 2. Active Bluetooth discovery for connectable nearby phones/computers
+                    runCatching {
+                        btManager.startDiscovery(object : BluetoothDeviceManager.Listener {
+                            override fun onDeviceFound(address: String, name: String) {
+                                upsertBluetoothPeer(address, name)
+                            }
+                            override fun onDiscoveryFinished() {}
+                        })
+                    }
+
+                    // Scan every 5 seconds
+                    delay(5000L)
                 }
-                delay(1000L)
             }
-        }
-
-        // Active Bluetooth discovery for ALL connectable nearby Bluetooth devices
-        runCatching {
-            btManager.startDiscovery(object : BluetoothDeviceManager.Listener {
-                override fun onDeviceFound(address: String, name: String) {
-                    upsertBluetoothPeer(address, name)
-                }
-
-                override fun onDiscoveryFinished() {}
-            })
         }
 
         if (started) return
@@ -111,11 +118,18 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 override fun onError(message: String) {
-                    _message.value = message
+                    // Quiet background scan
                 }
             })
         }
         viewModelScope.launch { expireStalePeers() }
+    }
+
+    /** Pauses continuous background scanning (e.g. when a peer is selected for file transfer). */
+    fun stopDiscovery() {
+        continuousScanJob?.cancel()
+        continuousScanJob = null
+        runCatching { btManager.stopDiscovery() }
     }
 
     fun addDiscoveredPeerFromQR(deviceName: String, host: String, port: Int): Peer {
@@ -208,8 +222,8 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        stopDiscovery()
         runCatching { discovery.shutdown() }
-        runCatching { btManager.stopDiscovery() }
         runCatching { udpDiscovery.stopListening() }
         super.onCleared()
     }
