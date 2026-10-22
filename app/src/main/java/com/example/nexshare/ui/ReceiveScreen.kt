@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -45,6 +46,7 @@ fun ReceiveScreen(container: AppContainer, peersViewModel: PeersViewModel? = nul
     val context = LocalContext.current
 
     var scanStatusMessage by remember { mutableStateOf<String?>(null) }
+    var manualIpInput by remember { mutableStateOf("") }
 
     // Live Camera QR Scanner Launcher
     val cameraScannerLauncher = rememberLauncherForActivityResult(
@@ -56,7 +58,8 @@ fun ReceiveScreen(container: AppContainer, peersViewModel: PeersViewModel? = nul
                 val qrData = QRCodeDecoder.parseData(rawText)
                 if (qrData != null) {
                     peersViewModel?.addDiscoveredPeerFromQR(qrData.deviceName, qrData.host, qrData.port)
-                    scanStatusMessage = "Connected to ${qrData.deviceName} (${qrData.host}:${qrData.port})! Device added to Nearby Devices."
+                    peersViewModel?.sendHandshakeToSender(qrData.host, deviceName)
+                    scanStatusMessage = "Paired with ${qrData.deviceName} (${qrData.host}:${qrData.port})! Both devices connected."
                 } else {
                     scanStatusMessage = "Scanned QR Code: $rawText"
                 }
@@ -106,7 +109,8 @@ fun ReceiveScreen(container: AppContainer, peersViewModel: PeersViewModel? = nul
                             val qrData = QRCodeDecoder.parseData(rawText)
                             if (qrData != null) {
                                 peersViewModel?.addDiscoveredPeerFromQR(qrData.deviceName, qrData.host, qrData.port)
-                                scanStatusMessage = "Connected to ${qrData.deviceName} (${qrData.host}:${qrData.port})! Device added to Nearby Devices."
+                                peersViewModel?.sendHandshakeToSender(qrData.host, deviceName)
+                                scanStatusMessage = "Paired with ${qrData.deviceName} (${qrData.host}:${qrData.port})! Both devices connected."
                             } else {
                                 scanStatusMessage = "Scanned QR Code: $rawText"
                             }
@@ -199,6 +203,48 @@ fun ReceiveScreen(container: AppContainer, peersViewModel: PeersViewModel? = nul
                 scanStatusMessage?.let { msg ->
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(text = msg, color = PrimaryAccent, fontSize = 12.sp)
+                }
+            }
+        }
+
+        item {
+            PanelCard(modifier = Modifier.fillMaxWidth(), color = DarkPanel) {
+                Text(
+                    text = "Enter IP Address to Connect",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = PrimaryText
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Enter the IP address displayed on your computer or sender device to join the network and add it to Nearby Devices.",
+                    color = SecondaryText,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = manualIpInput,
+                    onValueChange = { manualIpInput = it },
+                    placeholder = { Text("e.g. 192.168.43.1:8080 or 192.168.1.15", color = SecondaryText) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val clean = manualIpInput.trim().removePrefix("http://").removePrefix("https://")
+                        val host = clean.substringBefore(":")
+                        val port = clean.substringAfter(":", "8080").toIntOrNull() ?: 8080
+                        if (host.isNotBlank()) {
+                            peersViewModel?.addDiscoveredPeerFromQR("Computer/Host ($host)", host, port)
+                            peersViewModel?.sendHandshakeToSender(host, deviceName)
+                            scanStatusMessage = "Added Host $host:$port to Nearby Devices! Tap 'Devices' to transfer."
+                            manualIpInput = ""
+                        }
+                    },
+                    enabled = manualIpInput.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Join Network & Connect")
                 }
             }
         }

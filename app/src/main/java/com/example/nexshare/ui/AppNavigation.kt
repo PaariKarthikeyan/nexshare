@@ -15,15 +15,15 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -39,7 +39,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.nexshare.AppContainer
-import com.example.nexshare.transfer.ConnectionMethod
 import com.example.nexshare.transfer.TransferControl
 import com.example.nexshare.ui.theme.DarkPanel
 import com.example.nexshare.ui.theme.MainPanel
@@ -124,28 +123,21 @@ fun AppNavigation(
                     viewModel = peersViewModel,
                     hasQueuedFiles = queued.isNotEmpty(),
                     onSendTo = { peer ->
-                        val totalSize = queued.sumOf { it.file.sizeBytes }
-                        val chosenMethod = if (peer.method == ConnectionMethod.BLUETOOTH) {
-                            ConnectionMethod.BLUETOOTH
-                        } else if (totalSize < 5L * 1024 * 1024) {
-                            ConnectionMethod.BLUETOOTH
-                        } else {
-                            ConnectionMethod.HOTSPOT
-                        }
-                        val adjustedPeer = peer.copy(method = chosenMethod)
-
                         CoroutineScope(Dispatchers.IO).launch {
                             runCatching {
+                                container.transferServer.startServer(android.os.Build.MODEL.ifBlank { "NexShare device" })
                                 queued.forEach { hashedFile ->
                                     hashedFile.sha256?.let { hash ->
                                         container.transferService.sendFile(
-                                            peer = adjustedPeer,
+                                            peer = peer,
                                             file = hashedFile.file,
                                             sha256 = hash,
                                             control = TransferControl()
                                         )
                                     }
                                 }
+                            }.onFailure { e ->
+                                android.util.Log.e("NexShareApp", "Transfer failed: ${e.message}", e)
                             }
                             sendViewModel.clear()
                         }

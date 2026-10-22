@@ -91,6 +91,21 @@ class UdpDiscoveryManager(
         }
     }
 
+    fun sendHandshakePing(targetHost: String, localDeviceName: String, localPort: Int) {
+        scope.launch {
+            try {
+                val socket = DatagramSocket()
+                val pingMsg = "NXSH_PING:$localDeviceName:$localPort".toByteArray(Charsets.UTF_8)
+                val address = InetAddress.getByName(targetHost)
+                val packet = DatagramPacket(pingMsg, pingMsg.size, address, UDP_PORT)
+                socket.send(packet)
+                socket.close()
+            } catch (e: Exception) {
+                Log.e("UdpDiscovery", "Handshake ping error: ${e.message}")
+            }
+        }
+    }
+
     fun stopListening() {
         runCatching { listenSocket?.close() }
         listenSocket = null

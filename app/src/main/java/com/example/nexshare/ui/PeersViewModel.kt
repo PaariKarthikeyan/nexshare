@@ -152,6 +152,10 @@ class PeersViewModel(application: Application) : AndroidViewModel(application) {
         return peer
     }
 
+    fun sendHandshakeToSender(targetHost: String, localDeviceName: String) {
+        udpDiscovery.sendHandshakePing(targetHost, localDeviceName, if (registeredPort > 0) registeredPort else 5000)
+    }
+
     fun togglePair(peerId: String) {
         _peers.update { list ->
             list.map { if (it.peerId == peerId) it.copy(trusted = !it.trusted) else it }

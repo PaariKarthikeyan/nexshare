@@ -46,7 +46,9 @@ fun NexShareApp() {
 
     LaunchedEffect(isReady) {
         if (isReady) {
-            peersViewModel.startDiscovery(deviceName, 0)
+            val serverPort = container.transferServer.startServer(deviceName)
+            container.bluetoothManager.startServer(deviceName)
+            peersViewModel.startDiscovery(deviceName, serverPort)
             hotspotViewModel.bind(container.transferServer, deviceName) { port ->
                 if (port > 0) peersViewModel.startDiscovery(deviceName, port)
             }

@@ -71,7 +71,6 @@ class AppContainer(private val appContext: Context) {
         TransferService(
             context = appContext,
             tcpManager = transferServer,
-            bluetoothManager = bluetoothManager,
             repository = transferRepository,
             deviceName = Build.MODEL.ifBlank { "NexShare device" }
         )

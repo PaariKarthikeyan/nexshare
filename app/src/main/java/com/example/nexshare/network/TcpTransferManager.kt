@@ -79,9 +79,13 @@ class TcpTransferManager(
         control: TransferControl = TransferControl(),
         onProgress: (TransferProgress) -> Unit = {}
     ): TransferOutcome = withContext(Dispatchers.IO) {
+        if (port <= 0 || host.isBlank() || host == "0.0.0.0") {
+            return@withContext TransferOutcome.FAILED
+        }
         val socket = Socket()
         try {
-            socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
+            val address = InetSocketAddress(host, port)
+            socket.connect(address, CONNECT_TIMEOUT_MS)
             socket.soTimeout = READ_TIMEOUT_MS
             protocol.send(socketConnection(socket), deviceName, file, sha256, transferId, control, onProgress)
         } catch (e: Exception) {
